@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
@@ -22,9 +23,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-zinc-50" suppressHydrationWarning>
         <div className="flex min-h-screen flex-col md:flex-row">
-          <NavShell>
-            <Nav />
-          </NavShell>
+          <Suspense>
+            <NavShell>
+              <Nav />
+            </NavShell>
+          </Suspense>
           <div className="min-w-0 flex-1">{children}</div>
         </div>
       </body>
