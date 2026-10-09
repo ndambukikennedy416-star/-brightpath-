@@ -13,6 +13,7 @@ import { CreateStudentSchema,
 } from "@/lib/validations";
 import { getOwnStudentId, requireFinance } from "@/lib/rbac";
 import { sanitizeOptionalText } from "@/lib/sanitize";
+import { sendPortalTemplate } from "@/lib/portal/notify";
 
 // Admin-only: onboarding happens post-acceptance, no public signup (PRD §3.1).
 async function requireAdmin() {
@@ -116,6 +117,10 @@ export async function updateOwnProfile(formData: FormData) {
   if (!parsed.success) {
     return { ok: false, errors: parsed.error.flatten().fieldErrors };
   }
+  const before = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { phone: true, mobileMoneyNumber: true },
+  });
   await prisma.student.update({
     where: { id: studentId },
     data: {
@@ -134,6 +139,18 @@ export async function updateOwnProfile(formData: FormData) {
     entity: "Student",
     entityId: studentId,
   });
+  // First-time contact completion counts as the application submission:
+  // confirm receipt once, with the student's own details.
+  const hadContact = Boolean(before?.phone || before?.mobileMoneyNumber);
+  const hasContact = Boolean(parsed.data.phone || parsed.data.mobileMoneyNumber);
+  if (!hadContact && hasContact && session.user.email) {
+    await sendPortalTemplate({
+      template: "application_received",
+      studentEmail: session.user.email,
+      studentName: session.user.name ?? "Student",
+      detail: "contact and payout details",
+    }).catch(() => undefined);
+  }
   revalidatePath("/student/profile");
   return { ok: true };
 }

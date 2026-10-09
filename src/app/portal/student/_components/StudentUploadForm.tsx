@@ -3,9 +3,19 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { createClient } from "@/lib/portal/client";
+import { notifyDocumentUploaded } from "@/lib/portal/notify";
 import { notifyToast } from "@/app/admin/users/_components/Toast";
 
-const TYPES = ["Fee Structure", "Result Slip", "Landlord Invoice", "ID", "Other"];
+const TYPES: Array<[string, string]> = [
+  ["Fee Structure", "fee_structure"],
+  ["Result Slip", "result_slip"],
+  ["Landlord Invoice", "landlord_invoice"],
+  ["ID", "id"],
+  ["Other", "other"],
+];
+
+const ALLOWED_MIME = new Set(["application/pdf", "image/jpeg"]);
+const MAX_BYTES = 5 * 1024 * 1024;
 
 export default function StudentUploadForm() {
   const [busy, setBusy] = useState(false);
@@ -20,7 +30,8 @@ export default function StudentUploadForm() {
       const file = fd.get("file") as File | null;
       const type = String(fd.get("type") ?? "Other");
       if (!file || file.size === 0) throw new Error("Choose a file first.");
-      if (file.size > 10 * 1024 * 1024) throw new Error("File must be under 10 MB.");
+      if (!ALLOWED_MIME.has(file.type)) throw new Error("PDF or JPG only.");
+      if (file.size > MAX_BYTES) throw new Error("File must be under 5 MB.");
 
       const supabase = createClient();
       const {
@@ -28,20 +39,26 @@ export default function StudentUploadForm() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Session expired. Sign in again.");
 
-      const path = `${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const tag = TYPES.find(([label]) => label === type)?.[1] ?? "other";
+      const path = `${user.id}/${tag}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const { error: upError } = await supabase.storage
         .from("student-docs")
         .upload(path, file);
       if (upError) throw upError;
 
-      const { error: dbError } = await supabase.from("student_documents").insert({
-        student_id: user.id,
-        type,
-        file_url: path,
-        status: "pending",
-      });
+      const { data: doc, error: dbError } = await supabase
+        .from("student_documents")
+        .insert({
+          student_id: user.id,
+          type,
+          file_url: path,
+          status: "pending",
+        })
+        .select("id")
+        .single();
       if (dbError) throw dbError;
 
+      await notifyDocumentUploaded(doc.id).catch(() => undefined);
       notifyToast("Document uploaded — pending verification.");
       e.currentTarget.reset();
     } catch (err) {
@@ -58,13 +75,13 @@ export default function StudentUploadForm() {
     <form onSubmit={onSubmit} className="grid gap-2 text-sm">
       <div className="grid gap-2 md:grid-cols-2">
         <select name="type" required aria-label="Document type" disabled={busy} className={inputCls} defaultValue="Fee Structure">
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
+          {TYPES.map(([label]) => (
+            <option key={label} value={label}>
+              {label}
             </option>
           ))}
         </select>
-        <input name="file" type="file" required disabled={busy} aria-label="File" className={inputCls} />
+        <input name="file" type="file" required disabled={busy} aria-label="File (PDF or JPG, max 5 MB)" accept="application/pdf,image/jpeg,.pdf,.jpg,.jpeg" className={inputCls} />
       </div>
       {error && (
         <p role="alert" className="text-sm text-red-700">

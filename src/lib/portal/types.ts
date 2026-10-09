@@ -15,6 +15,10 @@ export type PortalPayment = {
   status: string;
   method: string | null;
   reference: string | null;
+  disbursement_date: string | null;
+  payment_method: string | null;
+  transaction_reference: string | null;
+  approved_by: string | null;
   created_at: string;
 };
 
@@ -24,6 +28,7 @@ export type PortalDocument = {
   type: string;
   file_url: string;
   status: string;
+  verified: boolean;
   created_at: string;
 };
 

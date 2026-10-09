@@ -9,12 +9,15 @@ export default async function AdminPortalPage() {
   if (!ctx) redirect("/portal-login");
   const { supabase, profile } = ctx;
 
-  const [users, payments, docs, accounts, resources] = await Promise.all([
+  const [users, payments, docs, accounts, resources, applications, pendingVerification, monthPaid] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("payments").select("id,amount,status"),
     supabase.from("student_documents").select("id", { count: "exact", head: true }),
     supabase.from("accounts").select("id", { count: "exact", head: true }),
     supabase.from("financial_literacy_resources").select("id", { count: "exact", head: true }),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
+    supabase.from("student_documents").select("id", { count: "exact", head: true }).eq("verified", false),
+    supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "paid").gte("disbursement_date", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
   ]);
 
   const paid = ((payments.data ?? []) as PortalPayment[])
@@ -27,6 +30,9 @@ export default async function AdminPortalPage() {
     ["Documents", String(docs.count ?? 0), "Student uploads"],
     ["Payment accounts", String(accounts.count ?? 0), "Schools and landlords"],
     ["Literacy resources", String(resources.count ?? 0), "M&E library"],
+    ["Applications received", String(applications.count ?? 0), "Student profiles"],
+    ["Pending verification", String(pendingVerification.count ?? 0), "Documents awaiting review"],
+    ["Paid this month", String(monthPaid.count ?? 0), "Disbursements"],
   ];
 
   return (

@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePortalRole } from "@/lib/portal/server";
+import { sendPortalTemplate } from "@/lib/portal/notify";
+
+const PAYMENT_METHODS = ["bank_transfer", "mobile_money", "check"];
 
 // Finance writes go through RLS as the signed-in officer (policies check
 // current_role()), so no service key is needed for CRUD here.
@@ -31,35 +34,42 @@ export async function initiatePayment(formData: FormData) {
 export async function reviewPortalPayment(formData: FormData) {
   const ctx = await requirePortalRole("financial_officer");
   if (!ctx) return { ok: false, message: "Finance only" };
-  const { supabase } = ctx;
+  const { supabase, user } = ctx;
   const paymentId = String(formData.get("paymentId") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!paymentId || !["approved", "paid", "rejected"].includes(status)) {
     return { ok: false, message: "Invalid payment or status." };
   }
-  const { error } = await supabase.from("payments").update({ status }).eq("id", paymentId);
+  const method = String(formData.get("paymentMethod") ?? "").trim();
+  const reference = String(formData.get("transactionReference") ?? "").trim();
+  if (status === "paid") {
+    if (!PAYMENT_METHODS.includes(method)) {
+      return { ok: false, message: "Payment method is required." };
+    }
+    if (!reference) {
+      return { ok: false, message: "Transaction reference is required." };
+    }
+  }
+  const patch: Record<string, unknown> = { status };
+  if (status === "approved" || status === "paid") {
+    patch.approved_by = user.id;
+  }
+  if (status === "paid") {
+    patch.disbursement_date = new Date().toISOString();
+    patch.payment_method = method;
+    patch.transaction_reference = reference;
+  }
+  const { error } = await supabase.from("payments").update(patch).eq("id", paymentId);
   if (error) return { ok: false, message: error.message };
 
-  // Receipt email via Edge Function (best-effort; skipped when unconfigured).
+  // Status emails via Edge Function (best-effort; skipped when unconfigured).
   if (status === "paid") {
-    await triggerReceiptEmail(paymentId).catch(() => undefined);
+    await sendPortalTemplate({ template: "payment_receipt", paymentId }).catch(() => undefined);
+  } else {
+    await sendPortalTemplate({ template: "payment_status", paymentId, toStatus: status }).catch(() => undefined);
   }
   revalidatePath("/portal/finance");
   return { ok: true };
-}
-
-async function triggerReceiptEmail(paymentId: string) {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!base || !serviceKey) return;
-  await fetch(`${base}/functions/v1/send-payment-email`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${serviceKey}`,
-    },
-    body: JSON.stringify({ paymentId }),
-  });
 }
 
 export async function saveAccount(formData: FormData) {
