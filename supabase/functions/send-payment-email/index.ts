@@ -8,12 +8,12 @@
 //   { template: "document_uploaded", documentId }         — upload confirmation
 //   { template: "application_received", studentEmail, studentName, detail? }
 // Back-compat: { paymentId } with no template == payment_receipt.
-//
-// deno.json: { "imports": { "resend": "npm:resend@4" } }
+// NOTE: the Resend import uses the full npm: specifier so no deno.json
+// import map is required at deploy time.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "resend";
+import { Resend } from "npm:resend@4";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
 const supabase = createClient(
