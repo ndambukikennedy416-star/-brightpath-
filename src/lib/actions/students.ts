@@ -13,7 +13,7 @@ import { CreateStudentSchema,
 } from "@/lib/validations";
 import { getOwnStudentId, requireFinance } from "@/lib/rbac";
 import { sanitizeOptionalText } from "@/lib/sanitize";
-import { sendPortalTemplate } from "@/lib/portal/notify";
+import { logEmailFailure, sendPortalTemplate } from "@/lib/portal/notify";
 
 // Admin-only: onboarding happens post-acceptance, no public signup (PRD §3.1).
 async function requireAdmin() {
@@ -144,12 +144,19 @@ export async function updateOwnProfile(formData: FormData) {
   const hadContact = Boolean(before?.phone || before?.mobileMoneyNumber);
   const hasContact = Boolean(parsed.data.phone || parsed.data.mobileMoneyNumber);
   if (!hadContact && hasContact && session.user.email) {
-    await sendPortalTemplate({
+    const sent = await sendPortalTemplate({
       template: "application_received",
       studentEmail: session.user.email,
       studentName: session.user.name ?? "Student",
       detail: "contact and payout details",
-    }).catch(() => undefined);
+    });
+    if (!sent.ok) {
+      await logEmailFailure({
+        template: "application_received",
+        recipient: session.user.email,
+        error: sent.error,
+      });
+    }
   }
   revalidatePath("/student/profile");
   return { ok: true };

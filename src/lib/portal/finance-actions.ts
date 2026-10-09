@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePortalRole } from "@/lib/portal/server";
-import { sendPortalTemplate } from "@/lib/portal/notify";
+import { logEmailFailure, sendPortalTemplate } from "@/lib/portal/notify";
 
 const PAYMENT_METHODS = ["bank_transfer", "mobile_money", "check"];
 
@@ -18,12 +18,30 @@ export async function initiatePayment(formData: FormData) {
   const studentId = String(formData.get("studentId") ?? "");
   const amount = Number(formData.get("amount") ?? 0);
   const type = String(formData.get("type") ?? "").trim();
+  const method = String(formData.get("paymentMethod") ?? "").trim();
+  const reference = String(formData.get("transactionReference") ?? "").trim();
+  const accountId = String(formData.get("accountId") ?? "").trim() || null;
   if (!studentId || !Number.isFinite(amount) || amount <= 0 || !type) {
     return { ok: false, message: "Student, positive amount, and type are required." };
   }
+  if (!PAYMENT_METHODS.includes(method)) {
+    return { ok: false, message: "Payment method is required." };
+  }
+  if (!reference) {
+    return { ok: false, message: "Transaction reference is required." };
+  }
   const { data, error } = await supabase
     .from("payments")
-    .insert({ student_id: studentId, amount, type, status: "pending", created_by: user.id })
+    .insert({
+      student_id: studentId,
+      amount,
+      type,
+      status: "pending",
+      created_by: user.id,
+      payment_method: method,
+      transaction_reference: reference,
+      account_id: accountId,
+    })
     .select("id")
     .single();
   if (error) return { ok: false, message: error.message };
@@ -40,53 +58,48 @@ export async function reviewPortalPayment(formData: FormData) {
   if (!paymentId || !["approved", "paid", "rejected"].includes(status)) {
     return { ok: false, message: "Invalid payment or status." };
   }
-  const method = String(formData.get("paymentMethod") ?? "").trim();
-  const reference = String(formData.get("transactionReference") ?? "").trim();
-  if (status === "paid") {
-    if (!PAYMENT_METHODS.includes(method)) {
-      return { ok: false, message: "Payment method is required." };
-    }
-    if (!reference) {
-      return { ok: false, message: "Transaction reference is required." };
-    }
-  }
   const patch: Record<string, unknown> = { status };
   if (status === "approved" || status === "paid") {
     patch.approved_by = user.id;
   }
   if (status === "paid") {
+    // Method + reference were captured at initiation; only stamp the date here.
     patch.disbursement_date = new Date().toISOString();
-    patch.payment_method = method;
-    patch.transaction_reference = reference;
   }
   const { error } = await supabase.from("payments").update(patch).eq("id", paymentId);
   if (error) return { ok: false, message: error.message };
 
   // Status emails via Edge Function (best-effort; skipped when unconfigured).
+  // Failures are recorded in notification_log for the error log + retry.
   if (status === "paid") {
-    await sendPortalTemplate({ template: "payment_receipt", paymentId }).catch(() => undefined);
+    const sent = await sendPortalTemplate({ template: "payment_receipt", paymentId });
+    if (!sent.ok) {
+      await logEmailFailure({ template: "payment_receipt", paymentId, error: sent.error });
+    }
   } else {
-    await sendPortalTemplate({ template: "payment_status", paymentId, toStatus: status }).catch(() => undefined);
+    const sent = await sendPortalTemplate({ template: "payment_status", paymentId, toStatus: status });
+    if (!sent.ok) {
+      await logEmailFailure({ template: "payment_status", paymentId, error: sent.error });
+    }
   }
   revalidatePath("/portal/finance");
   return { ok: true };
 }
 
 export async function saveAccount(formData: FormData) {
-  const ctx = await requirePortalRole("financial_officer", "admin");
-  if (!ctx) return { ok: false, message: "Finance only" };
-  if (ctx.profile.role !== "financial_officer") {
-    return { ok: false, message: "Admins cannot manage accounts" };
-  }
+  const ctx = await requirePortalRole("admin");
+  if (!ctx) return { ok: false, message: "Admin only" };
   const { supabase } = ctx;
   const name = String(formData.get("name") ?? "").trim();
   const kind = String(formData.get("kind") ?? "");
+  const studentId = String(formData.get("studentId") ?? "").trim() || null;
   if (name.length < 2 || !["school", "landlord"].includes(kind)) {
     return { ok: false, message: "Name and valid account type are required." };
   }
   const { error } = await supabase.from("accounts").insert({
     name,
     kind,
+    student_id: studentId,
     contact_person: String(formData.get("contactPerson") ?? "").trim() || null,
     contact_phone: String(formData.get("contactPhone") ?? "").trim() || null,
     bank_name: String(formData.get("bankName") ?? "").trim() || null,
@@ -95,17 +108,49 @@ export async function saveAccount(formData: FormData) {
     paybill_number: String(formData.get("paybillNumber") ?? "").trim() || null,
   });
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/portal/finance");
+  revalidatePath("/portal/admin");
   return { ok: true };
 }
 
 export async function verifyAccount(formData: FormData) {
-  const ctx = await requirePortalRole("financial_officer");
-  if (!ctx) return { ok: false, message: "Finance only" };
+  const ctx = await requirePortalRole("admin");
+  if (!ctx) return { ok: false, message: "Admin only" };
   const accountId = String(formData.get("accountId") ?? "");
   const verified = formData.get("verified") === "true";
   if (!accountId) return { ok: false, message: "Missing account." };
   const { error } = await ctx.supabase.from("accounts").update({ verified }).eq("id", accountId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/portal/admin");
+  return { ok: true };
+}
+
+export async function retryNotification(formData: FormData) {
+  const ctx = await requirePortalRole("financial_officer", "admin");
+  if (!ctx) return { ok: false, message: "Finance only" };
+  const id = String(formData.get("notificationId") ?? "");
+  if (!id) return { ok: false, message: "Missing entry." };
+  const { data: row } = await ctx.supabase
+    .from("notification_log")
+    .select("id,template,payment_id,document_id,recipient_email,attempts")
+    .eq("id", id)
+    .single();
+  if (!row) return { ok: false, message: "Entry not found." };
+  const payload: Record<string, unknown> = { template: row.template };
+  if (row.payment_id) payload.paymentId = row.payment_id;
+  if (row.document_id) payload.documentId = row.document_id;
+  if (row.template === "application_received") {
+    if (!row.recipient_email) return { ok: false, message: "No recipient stored." };
+    payload.studentEmail = row.recipient_email;
+  }
+  const sent = await sendPortalTemplate(payload);
+  const { error } = await ctx.supabase
+    .from("notification_log")
+    .update({
+      status: sent.ok ? "sent" : "failed",
+      error: sent.ok ? null : sent.error,
+      attempts: (row.attempts ?? 1) + 1,
+    })
+    .eq("id", id);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/portal/finance");
   return { ok: true };

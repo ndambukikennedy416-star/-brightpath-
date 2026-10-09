@@ -19,6 +19,7 @@ export type PortalPayment = {
   payment_method: string | null;
   transaction_reference: string | null;
   approved_by: string | null;
+  account_id: string | null;
   created_at: string;
 };
 
@@ -36,6 +37,7 @@ export type PortalAccount = {
   id: string;
   name: string;
   kind: string;
+  student_id: string | null;
   contact_person: string | null;
   contact_phone: string | null;
   bank_name: string | null;
@@ -44,6 +46,18 @@ export type PortalAccount = {
   paybill_number: string | null;
   verified: boolean;
   last_payment_date: string | null;
+};
+
+export type PortalNotification = {
+  id: string;
+  template: string;
+  payment_id: string | null;
+  document_id: string | null;
+  recipient_email: string | null;
+  status: string;
+  error: string | null;
+  attempts: number;
+  created_at: string;
 };
 
 export type PortalResource = {
