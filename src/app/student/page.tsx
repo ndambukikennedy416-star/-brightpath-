@@ -56,15 +56,9 @@ export default async function StudentDashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-xl font-bold tabular-nums">{kes(received)}</div>
-          <div className="text-sm text-zinc-600">Received so far</div>
-        </div>
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-xl font-bold tabular-nums">{kes(student.totalBudget)}</div>
-          <div className="text-sm text-zinc-600">Total award</div>
-        </div>
+      <div className="rounded-xl border bg-white p-4">
+        <div className="text-xl font-bold tabular-nums">{kes(received)}</div>
+        <div className="text-sm text-zinc-600">Received so far</div>
       </div>
 
       <Card title="Next disbursement">
