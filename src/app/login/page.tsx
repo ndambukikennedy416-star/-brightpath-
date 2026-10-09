@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { googleSignIn, loginAction } from "@/lib/actions/auth-actions";
 
 export default async function LoginPage({
@@ -86,6 +87,11 @@ export default async function LoginPage({
         >
           Sign in
         </button>
+        <p className="text-center text-sm text-zinc-600">
+          <Link href="/portal-login" className="font-medium underline">
+            Student portal sign in →
+          </Link>
+        </p>
       </form>
       {googleEnabled && (
         <form
