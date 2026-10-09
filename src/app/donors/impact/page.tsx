@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { kes } from "@/lib/format";
 
@@ -5,6 +7,11 @@ export const dynamic = "force-dynamic";
 
 // Donor "Impact Window" (PRD §3.6): aggregate only, no PII.
 export default async function DonorImpactPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  if (!["ADMIN", "FINANCE_OFFICER", "DONOR"].includes(session.user.role)) {
+    redirect("/dashboard");
+  }
   const [totalDisbursed, studentsFunded, records] = await Promise.all([
     prisma.payment.aggregate({
       _sum: { amount: true },

@@ -7,7 +7,7 @@ import { getToken } from "next-auth/jwt";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 
-const PUBLIC_PATHS = ["/login", "/favicon.ico", "/logo.jpg", "/logo.png", "/banner.jpg", "/team.jpg"];
+const PUBLIC_PATHS = ["/login", "/signup", "/favicon.ico", "/logo.jpg", "/logo.png", "/banner.jpg", "/team.jpg"];
 
 // Path prefix → roles allowed (optimistic; pages re-verify via auth()).
 // NOTE: "/students" must precede "/student" — prefix matching would otherwise

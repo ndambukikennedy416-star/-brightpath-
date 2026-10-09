@@ -48,7 +48,7 @@ export default async function LoginPage({
         {params?.error && (
           <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
             {params.error === "AccessDenied"
-              ? "This Google account is not registered. Contact your administrator."
+              ? "This Google account is not registered, or is awaiting administrator approval."
               : "Invalid email or password."}
           </p>
         )}
@@ -90,6 +90,12 @@ export default async function LoginPage({
         <p className="text-center text-sm text-zinc-600">
           <Link href="/portal-login" className="font-medium underline">
             Student portal sign in →
+          </Link>
+        </p>
+        <p className="text-center text-sm text-zinc-600">
+          New here?{" "}
+          <Link href="/signup" className="font-medium underline">
+            Create account
           </Link>
         </p>
       </form>

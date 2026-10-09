@@ -1,12 +1,17 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
+import { cookies } from "next/headers";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "./prisma";
 import { logAudit } from "./audit";
+
+// Role chosen at self-signup (/signup), consumed once by the sign-in
+// callback below. Lives here (not in auth-actions) to avoid a module cycle.
+export const OAUTH_ROLE_COOKIE = "bp_oauth_role";
 
 const SignInSchema = z.object({
   email: z.string().email(),
@@ -68,23 +73,51 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    // Block Google self-registration: only pre-provisioned, active,
-    // approved accounts may sign in. Returning false prevents the
-    // adapter from auto-creating a User for unknown Google emails.
+    // Google access rules:
+    // - Pre-provisioned, active, approved accounts sign straight in.
+    // - Unknown Google emails are rejected UNLESS they came through /signup,
+    //   which parks a one-time role choice in a cookie. Students are approved
+    //   immediately; financial officers are created PENDING and blocked until
+    //   an admin approves them. Anything else is rejected (no open registration).
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         const email = user?.email;
         if (!email) return false;
         const existing = await prisma.user.findUnique({ where: { email } });
-        if (!existing) return false;
-        if (existing.isActive === false) return false;
-        if (existing.accountStatus !== "APPROVED") return false;
+        if (existing) {
+          if (existing.isActive === false) return false;
+          if (existing.accountStatus !== "APPROVED") return false;
+          await logAudit({
+            actorId: existing.id,
+            action: "USER.LOGIN",
+            entity: "User",
+            entityId: existing.id,
+          }).catch(() => undefined);
+          return true;
+        }
+        const store = await cookies();
+        const choice = store.get(OAUTH_ROLE_COOKIE)?.value;
+        store.delete(OAUTH_ROLE_COOKIE);
+        if (choice !== "student" && choice !== "financial_officer") return false;
+        const role: UserRole =
+          choice === "student" ? "STUDENT" : "FINANCE_OFFICER";
+        const created = await prisma.user.create({
+          data: {
+            email,
+            name: user.name ?? email.split("@")[0],
+            role,
+            accountStatus: role === "STUDENT" ? "APPROVED" : "PENDING",
+          },
+        });
         await logAudit({
-          actorId: existing.id,
-          action: "USER.LOGIN",
+          actorId: created.id,
+          action: "USER.SELF_REGISTERED",
           entity: "User",
-          entityId: existing.id,
+          entityId: created.id,
         }).catch(() => undefined);
+        // Students continue (the adapter links the Google account via
+        // allowDangerousEmailAccountLinking); officers wait for approval.
+        return role === "STUDENT";
       }
       return true;
     },
