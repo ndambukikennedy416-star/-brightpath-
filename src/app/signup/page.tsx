@@ -1,6 +1,5 @@
 import Image from "next/image";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { auth, signOut } from "@/lib/auth";
 import { googleSignUp } from "@/lib/actions/auth-actions";
 
 export default async function SignUpPage({
@@ -9,8 +8,34 @@ export default async function SignUpPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
   const params = await searchParams;
+
+  if (session?.user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white px-4 py-10">
+        <div className="w-full max-w-sm space-y-4 rounded-2xl border p-8 text-center shadow-xl">
+          <h1 className="text-xl font-semibold">Already signed in</h1>
+          <p className="text-sm text-zinc-600">
+            Signed in as {session.user.email}. Sign out to register a different
+            account, or continue to your dashboard.
+          </p>
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/signup" });
+            }}
+          >
+            <button
+              type="submit"
+              className="w-full rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center gap-0 overflow-hidden bg-white px-4 py-10">
