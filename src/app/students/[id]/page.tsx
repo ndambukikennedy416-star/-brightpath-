@@ -57,7 +57,9 @@ export default async function StudentDetailPage({
   const timeline = [
     ...student.payments.map((p) => ({
       date: p.createdAt,
-      kind: `Payment ${p.type} ${p.status} $${Number(p.amount)}`,
+      kind: isStaff
+        ? `Payment ${p.type} ${p.status} $${Number(p.amount)}`
+        : `Payment ${p.type} ${p.status}`,
     })),
     ...student.academicRecords.map((r) => ({
       date: r.recordedAt,
@@ -75,12 +77,16 @@ export default async function StudentDetailPage({
         <p className="mt-1 text-sm text-zinc-600">
           {student.user.email} · {student.schoolName} · Year {student.currentYear}
         </p>
-        <p className="text-sm text-zinc-600">
-          Budget {kes(student.totalBudget)} · Disbursed {kes(disbursed)} ({utilization}%)
-        </p>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-          <div className="h-full bg-black" style={{ width: `${Math.min(utilization, 100)}%` }} />
-        </div>
+        {isStaff && (
+          <>
+            <p className="text-sm text-zinc-600">
+              Budget {kes(student.totalBudget)} · Disbursed {kes(disbursed)} ({utilization}%)
+            </p>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
+              <div className="h-full bg-black" style={{ width: `${Math.min(utilization, 100)}%` }} />
+            </div>
+          </>
+        )}
         {isStaff && (
           <SubmitForm action={updateStudentStatus} className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             <input type="hidden" name="studentId" value={student.id} />
@@ -116,7 +122,7 @@ export default async function StudentDetailPage({
         <ul className="space-y-1 text-sm">
           {student.payments.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
-              <span>{p.type} · {kes(p.amount)}</span>
+              <span>{isStaff ? `${p.type} · ${kes(p.amount)}` : p.type}</span>
               <Badge tone={statusTone(p.status)}>{p.status}</Badge>
               <span className="text-zinc-500">{p.createdAt.toLocaleDateString()}</span>
               {isFinance && p.status === "DISBURSED" && (
@@ -157,7 +163,7 @@ export default async function StudentDetailPage({
         <ul className="space-y-1 text-sm">
           {student.invoices.map((inv) => (
             <li key={inv.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
-              <span>{inv.type} · {kes(inv.amount)}</span>
+              <span>{isStaff ? `${inv.type} · ${kes(inv.amount)}` : inv.type}</span>
               <Badge tone={statusTone(inv.status)}>{inv.status}</Badge>
               <a href={inv.documentUrl} target="_blank" rel="noreferrer" className="underline">document</a>
               {isFinance && inv.status === "PENDING" && (
@@ -191,7 +197,7 @@ export default async function StudentDetailPage({
         <ul className="space-y-1 text-sm">
           {student.expenseClaims.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
-              <span>{kes(c.amount)} · {c.description}</span>
+              <span>{isStaff ? `${kes(c.amount)} · ${c.description}` : c.description}</span>
               <Badge tone={statusTone(c.status)}>{c.status}</Badge>
               {c.isEmergency && <Badge tone="red">EMERGENCY</Badge>}
               <a href={c.receiptUrl} target="_blank" rel="noreferrer" className="underline">receipt</a>
@@ -279,7 +285,8 @@ export default async function StudentDetailPage({
         <ul className="space-y-1 text-sm">
           {student.leases.map((l) => (
             <li key={l.id} className="rounded-lg border px-3 py-2">
-              {l.landlordName} · {kes(l.monthlyRent)}/mo ·{" "}
+              {l.landlordName}
+              {isStaff && <> · {kes(l.monthlyRent)}/mo</>} ·{" "}
               {l.startDate.toLocaleDateString()} → {l.endDate.toLocaleDateString()}
               {l.address && <span className="text-zinc-600"> · {l.address}</span>}
             </li>
