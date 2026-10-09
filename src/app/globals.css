@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  /* Force light theme by default: the OS/browser dark mode was flipping body
+     text near-white while cards stayed white, making text unreadable.
+     In-app dark mode is handled via the `.dark` class toggle instead. */
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background-color: #f7f6f2; /* warm paper canvas */
+  color: #1c1917; /* stone-900 ink */
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---- Entrance animation ---- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---- In-app dark mode surfaces ---- */
+.dark body {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+}
+.dark main .bg-white {
+  background-color: #1e293b !important;
+}
+.dark main .bg-zinc-50,
+.dark main .bg-zinc-100 {
+  background-color: #334155 !important;
+}
+.dark main .border {
+  border-color: #334155 !important;
+}
+.dark main .text-zinc-900 {
+  color: #f1f5f9 !important;
+}
+.dark main .text-zinc-700 {
+  color: #cbd5e1 !important;
+}
+.dark main .text-zinc-600,
+.dark main .text-zinc-500 {
+  color: #94a3b8 !important;
+}
+.dark main input,
+.dark main select,
+.dark main textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+.dark main code {
+  color: #cbd5e1 !important;
+}

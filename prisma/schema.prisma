@@ -1,0 +1,355 @@
+// Scholarship Management System — Prisma baseline (PRD §4) + Auth.js models
+// Database: PostgreSQL via Supabase. Prisma v7: URL lives in prisma.config.ts.
+ // Next.js 16: Server Actions mutate via Prisma; auth verified inside every action.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  FINANCE_OFFICER
+  FIELD_AGENT
+  STUDENT
+  EXTERNAL_PARTNER
+  DONOR
+}
+
+enum StudentStatus {
+  ACTIVE
+  SUSPENDED
+  GRADUATED
+  WITHDRAWN
+}
+
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  DISBURSED
+  REJECTED
+  FAILED
+}
+
+enum PaymentType {
+  TUITION
+  RENT
+  STIPEND
+  EMERGENCY
+}
+
+enum InstitutionType {
+  PRIMARY_SCHOOL
+  SECONDARY_SCHOOL
+  UNIVERSITY
+  PRIVATE_LANDLORD
+  HOSTEL
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  role          UserRole  @default(STUDENT)
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  isActive      Boolean   @default(true)
+  // Public-registration approval workflow (admin-approved accounts only).
+  accountStatus       AccountStatus @default(APPROVED)
+  mustChangePassword  Boolean       @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student         Student?
+  externalPartner ExternalPartner?
+
+  // Auth.js v5 adapter relations
+  accounts Account[]
+  sessions Session[]
+
+  @@index([role])
+}
+
+model Student {
+  id                   String        @id @default(cuid())
+  userId               String        @unique
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status               StudentStatus @default(ACTIVE)
+  schoolName           String
+  currentYear          Int
+  totalBudget          Decimal       @db.Decimal(10, 2)
+
+  // Admin-managed payout details (PRD §3.1 — not in baseline, required)
+  phone                String?
+  bankName             String?
+  bankAccountNumber    String?
+  mobileMoneyProvider  String?
+  mobileMoneyNumber    String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  payments       Payment[]
+  invoices       Invoice[]
+  expenseClaims  ExpenseClaim[]
+  academicRecords AcademicRecord[]
+  lessonProgress LessonProgress[]
+  documents      Document[]
+  leases         Lease[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([schoolName])
+}
+
+model ExternalPartner {
+  id               String @id @default(cuid())
+  userId           String @unique
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerType      String // 'SCHOOL' or 'LANDLORD' (kept as String per PRD baseline)
+  organizationName String
+  bankDetails      String?
+
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  partnerId   String
+  partner     ExternalPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type        PaymentType
+  amount      Decimal       @db.Decimal(10, 2)
+  status      PaymentStatus @default(PENDING)
+  documentUrl String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([partnerId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  studentId String
+  student   Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type      PaymentType
+  amount    Decimal       @db.Decimal(10, 2)
+  status    PaymentStatus @default(PENDING)
+
+  // Future Stripe / Mobile Money traceability (PRD §2)
+  provider  String?
+  reference String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  @@index([type])
+}
+
+model ExpenseClaim {
+  id          String        @id @default(cuid())
+  studentId   String
+  student     Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount      Decimal       @db.Decimal(10, 2)
+  description String
+  receiptUrl  String
+  status      PaymentStatus @default(PENDING)
+  // Emergency out-of-cycle requests surface first in review queues (PRD §3.3)
+  isEmergency Boolean       @default(false)
+  reviewedBy  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+}
+
+// Document vault: record-keeping for accepted beneficiaries (PRD §3.1).
+// Files stored via /api/upload; verification tracked here.
+model Document {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type       String   // 'ID' | 'ADMISSION_LETTER' | 'LEASE_AGREEMENT' | 'OTHER'
+  fileUrl    String
+  status     DocumentStatus @default(PENDING)
+  verifiedBy String?
+  verifiedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([studentId])
+  @@index([status])
+}
+
+// Payment recipients: schools/landlords as DATA ONLY — no logins, no portal.
+// Bank/M-PESA secrets stored AES-256-GCM encrypted (see src/lib/crypto.ts);
+// Finance structures the paybill fields for future Daraja API use.
+model PaymentRecipient {
+  id                String             @id @default(cuid())
+  displayName       String
+  institutionType   InstitutionType
+  contactPersonName String
+  contactPhone      String
+  verificationStatus VerificationStatus @default(PENDING)
+  accountName       String
+  accountNumberEnc  String?            @db.Text
+  bankName          String?
+  paybillNumberEnc  String?            @db.Text
+  mobileMoneyRef    String?
+  lastPaymentDate   DateTime?
+  isActive          Boolean            @default(true)
+  notes             String?
+  createdById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([verificationStatus])
+  @@index([institutionType])
+}
+
+// School fee structures + caps (PRD §3.2): scholarship vs out-of-pocket.
+model FeeStructure {
+  id          String   @id @default(cuid())
+  schoolName  String
+  academicYear Int
+  tuitionCap  Decimal  @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([schoolName, academicYear])
+  @@index([schoolName])
+}
+
+// Lease tracking + rent schedules (PRD §3.2).
+model Lease {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  landlordName String
+  address     String?
+  monthlyRent Decimal  @db.Decimal(10, 2)
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([studentId])
+}
+
+// Immutable audit trail (PRD §3.5): created only, never updated/deleted in app code.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String   // e.g. 'PAYMENT.DISBURSED', 'STUDENT.CREATED'
+  entity    String   // e.g. 'Payment'
+  entityId  String?
+  metadata  String?  @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+}
+
+model AcademicRecord {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term       String
+  gpa        Decimal? @db.Decimal(3, 2)
+  attendance Decimal? @db.Decimal(5, 2)
+  recordedAt DateTime @default(now())
+
+  @@unique([studentId, term])
+  @@index([studentId])
+}
+
+model FinancialLiteracyLesson {
+  id       String @id @default(cuid())
+  title    String
+  content  String @db.Text
+  order    Int    @unique
+  progress LessonProgress[]
+
+  @@index([order])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      FinancialLiteracyLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+
+  @@unique([studentId, lessonId])
+  @@index([studentId])
+}
+
+// ---- Auth.js (NextAuth v5) adapter models ----
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

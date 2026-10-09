@@ -1,0 +1,20 @@
+-- Enable RLS on all app tables (Supabase Advisor CRITICAL).
+-- No access policies: anon/authenticated API roles get deny-by-default.
+-- The app connects as table owner via the pooler, which bypasses RLS,
+-- so application behavior is unchanged; RBAC stays enforced in code.
+ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Student" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ExternalPartner" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Invoice" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Payment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ExpenseClaim" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "AcademicRecord" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FinancialLiteracyLesson" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "LessonProgress" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Account" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Session" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "VerificationToken" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Document" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FeeStructure" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Lease" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "AuditLog" ENABLE ROW LEVEL SECURITY;

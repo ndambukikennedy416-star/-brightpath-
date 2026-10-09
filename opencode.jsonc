@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": true,
+  "watcher": {
+    "ignore": ["node_modules/**", ".next/**", "prisma/migrations/**"]
+  },
+  "commands": {
+    "verify": {
+      "description": "Validate Prisma, type-check, lint, and build Brightpath",
+      "template": "Run in brightpath/: npx prisma validate, npx prisma generate, npx tsc --noEmit, npm run lint, npm run build. Report each failure with file:line and stop before editing."
+    }
+  }
+}
