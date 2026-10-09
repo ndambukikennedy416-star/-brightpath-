@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePortalRole } from "@/lib/portal/server";
 import { initiatePayment, retryNotification, reviewPortalPayment } from "@/lib/portal/finance-actions";
-import { prisma } from "@/lib/prisma";
 import ActionForm from "@/components/ActionForm";
 import { Badge } from "@/components/ui";
 import type { PortalAccount, PortalNotification, PortalPayment, PortalProfile } from "@/lib/portal/types";
@@ -66,14 +65,14 @@ export default async function FinancePortalPage({
   // Workspace student list: search or first 30. Name + school + status only.
   let studentQuery = supabase
     .from("profiles")
-    .select("id,full_name,email")
+    .select("id,full_name,email,school")
     .eq("role", "student")
     .order("full_name")
     .limit(30);
   if (q) {
     studentQuery = supabase
       .from("profiles")
-      .select("id,full_name,email")
+      .select("id,full_name,email,school")
       .eq("role", "student")
       .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
       .order("full_name")
@@ -129,17 +128,6 @@ export default async function FinancePortalPage({
     pendingByStudent.set(p.student_id, list);
   }
 
-  // School names come from the main registry, matched by email (best effort).
-  const schoolByEmail = new Map<string, string>();
-  const emails = [...new Set(workspaceStudents.map((s) => s.email))];
-  if (emails.length > 0) {
-    const schoolRows = await prisma.student.findMany({
-      where: { user: { email: { in: emails } } },
-      select: { schoolName: true, user: { select: { email: true } } },
-    });
-    for (const r of schoolRows) schoolByEmail.set(r.user.email, r.schoolName);
-  }
-
   const baseParams = {
     q: q || undefined,
     tab,
@@ -180,7 +168,7 @@ export default async function FinancePortalPage({
             {workspaceStudents.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
                 <span className="font-medium">{s.full_name || s.email}</span>
-                <span className="text-zinc-600">{schoolByEmail.get(s.email) ?? "school not on file"}</span>
+                <span className="text-zinc-600">{s.school ?? "school not on file"}</span>
                 <span className="ml-auto text-xs text-zinc-500">
                   {(pendingByStudent.get(s.id) ?? []).join(" · ") || "no pending items"}
                 </span>
@@ -428,7 +416,9 @@ export default async function FinancePortalPage({
                 <span className="font-medium">{f.template}</span>
                 <span className="text-zinc-600">{f.recipient_email ?? "no recipient stored"}</span>
                 <span className="text-red-700">{f.error ?? "unknown error"}</span>
-                <span className="text-xs text-zinc-500">tries: {f.attempts}</span>
+                <span className="text-xs tabular-nums text-zinc-500">
+                  {new Date(f.created_at).toLocaleString("en-KE")} · tries: {f.attempts}
+                </span>
                 <span className="ml-auto">
                   <ActionForm action={async (_s, fd) => retryNotification(fd)} submitLabel="Retry" onSuccess="Retried.">
                     <input type="hidden" name="notificationId" value={f.id} />

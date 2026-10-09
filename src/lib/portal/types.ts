@@ -4,6 +4,7 @@ export type PortalProfile = {
   id: string;
   email: string;
   full_name: string;
+  school: string | null;
   role: "admin" | "financial_officer" | "monitor_evaluator" | "student";
 };
 
