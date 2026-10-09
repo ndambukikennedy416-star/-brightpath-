@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOwnStudentId } from "@/lib/rbac";
 import { Badge, Card, statusTone } from "@/components/ui";
-import { kes } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +40,6 @@ export default async function StudentDashboardPage() {
   }
 
   const upcoming = student.payments.filter((p) => p.status === "PENDING" || p.status === "APPROVED");
-  const received = student.payments
-    .filter((p) => p.status === "DISBURSED")
-    .reduce((s, p) => s + Number(p.amount), 0);
   const latestTerm = student.academicRecords[0];
 
   return (
@@ -54,11 +50,6 @@ export default async function StudentDashboardPage() {
           {student.schoolName} · Year {student.currentYear} ·{" "}
           <Badge tone={statusTone(student.status)}>{student.status}</Badge>
         </p>
-      </div>
-
-      <div className="rounded-xl border bg-white p-4">
-        <div className="text-xl font-bold tabular-nums">{kes(received)}</div>
-        <div className="text-sm text-zinc-600">Received so far</div>
       </div>
 
       <Card title="Next disbursement">
@@ -72,7 +63,6 @@ export default async function StudentDashboardPage() {
                 className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
               >
                 <span className="font-medium">{p.type}</span>
-                <span>{kes(p.amount)}</span>
                 <Badge tone={statusTone(p.status)}>{p.status}</Badge>
               </li>
             ))}
@@ -84,7 +74,7 @@ export default async function StudentDashboardPage() {
         <ul className="space-y-1 text-sm">
           {student.payments.slice(0, 5).map((p) => (
             <li key={p.id} className="rounded-lg border px-3 py-2">
-              Payment {p.type} · {kes(p.amount)} · {p.status} ·{" "}
+              Payment {p.type} · {p.status} ·{" "}
               {p.createdAt.toLocaleDateString()}
             </li>
           ))}

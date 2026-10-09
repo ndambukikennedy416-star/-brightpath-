@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOwnStudentId } from "@/lib/rbac";
 import { Badge, Card, statusTone } from "@/components/ui";
-import { kes } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +71,6 @@ export default async function ApplicationStatusPage() {
   }
 
   const verifiedDocs = student.documents.filter((d) => d.status === "VERIFIED").length;
-  const disbursedTotal = student.payments.reduce((s, p) => s + Number(p.amount), 0);
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
@@ -133,7 +131,6 @@ export default async function ApplicationStatusPage() {
                 className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
               >
                 <span className="font-medium">{p.type}</span>
-                <span>{kes(p.amount)}</span>
                 <Badge tone={statusTone(p.status)}>{p.status}</Badge>
                 <span className="ml-auto text-zinc-500">
                   {p.createdAt.toLocaleDateString()}
@@ -142,9 +139,6 @@ export default async function ApplicationStatusPage() {
             ))}
           </ul>
         )}
-        <p className="mt-2 text-sm text-zinc-500">
-          Total received: {kes(disbursedTotal)}
-        </p>
       </Card>
 
       <p className="text-sm">
