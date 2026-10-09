@@ -22,11 +22,13 @@ export default async function StudentPortalPage() {
     supabase
       .from("payments")
       .select("id,type,status,created_at")
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(100),
     supabase
       .from("student_documents")
       .select("id,type,status,created_at")
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
   const payments = (paymentsRes.data ?? []) as PortalPayment[];
   const docs = (docsRes.data ?? []) as PortalDocument[];

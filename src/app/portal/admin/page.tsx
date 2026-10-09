@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { requirePortalRole } from "@/lib/portal/server";
-import type { PortalPayment } from "@/lib/portal/types";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +10,7 @@ export default async function AdminPortalPage() {
 
   const [users, payments, docs, accounts, resources, applications, pendingVerification, monthPaid] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("payments").select("id,amount,status"),
+    supabase.from("payments").select("amount").eq("status", "paid"),
     supabase.from("student_documents").select("id", { count: "exact", head: true }),
     supabase.from("accounts").select("id", { count: "exact", head: true }),
     supabase.from("financial_literacy_resources").select("id", { count: "exact", head: true }),
@@ -20,13 +19,12 @@ export default async function AdminPortalPage() {
     supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "paid").gte("disbursement_date", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
   ]);
 
-  const paid = ((payments.data ?? []) as PortalPayment[])
-    .filter((p) => p.status === "paid")
+  const paid = ((payments.data ?? []) as Array<{ amount: number | string }>)
     .reduce((s, p) => s + Number(p.amount), 0);
 
   const cards: Array<[string, string, string]> = [
     ["Portal users", String(users.count ?? 0), "All roles"],
-    ["Payments recorded", String((payments.data ?? []).length), `Paid out KSh ${paid.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`],
+    ["Payments paid", String((payments.data ?? []).length), `Paid out KSh ${paid.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`],
     ["Documents", String(docs.count ?? 0), "Student uploads"],
     ["Payment accounts", String(accounts.count ?? 0), "Schools and landlords"],
     ["Literacy resources", String(resources.count ?? 0), "M&E library"],

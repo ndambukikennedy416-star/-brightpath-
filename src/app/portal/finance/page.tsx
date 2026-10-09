@@ -31,10 +31,10 @@ export default async function FinancePortalPage() {
 
   const [paymentsRes, accountsRes, studentsRes, docsRes, officersRes] = await Promise.all([
     supabase.from("payments").select("id,amount,type,status,created_at,student_id,disbursement_date,payment_method,transaction_reference,approved_by").order("created_at", { ascending: false }).limit(100),
-    supabase.from("accounts").select("*").order("created_at", { ascending: false }),
-    supabase.from("profiles").select("id,full_name,email").eq("role", "student").order("full_name"),
+    supabase.from("accounts").select("id,name,kind,contact_person,contact_phone,bank_name,account_name,account_number,paybill_number,verified,last_payment_date,created_at").order("created_at", { ascending: false }).limit(200),
+    supabase.from("profiles").select("id,full_name,email").eq("role", "student").order("full_name").limit(500),
     supabase.from("student_documents").select("id").eq("status", "pending"),
-    supabase.from("profiles").select("id,full_name,email").in("role", ["financial_officer", "admin"]),
+    supabase.from("profiles").select("id,full_name,email").in("role", ["financial_officer", "admin"]).limit(100),
   ]);
   const payments = (paymentsRes.data ?? []) as PortalPayment[];
   const accounts = (accountsRes.data ?? []) as PortalAccount[];

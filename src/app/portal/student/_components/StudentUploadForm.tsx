@@ -43,7 +43,10 @@ export default function StudentUploadForm() {
       const path = `${user.id}/${tag}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const { error: upError } = await supabase.storage
         .from("student-docs")
-        .upload(path, file);
+        .upload(path, file, {
+          cacheControl: "public, max-age=31536000, immutable",
+          upsert: false,
+        });
       if (upError) throw upError;
 
       const { data: doc, error: dbError } = await supabase

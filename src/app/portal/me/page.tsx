@@ -25,8 +25,9 @@ export default async function MePortalPage() {
     supabase
       .from("financial_literacy_resources")
       .select("id,title,body,created_at")
-      .order("created_at", { ascending: false }),
-    supabase.from("profiles").select("id,full_name,email").eq("role", "student"),
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase.from("profiles").select("id,full_name,email").eq("role", "student").limit(500),
   ]);
   const payments = (paymentsRes.data ?? []) as PortalPayment[];
   const resources = (resourcesRes.data ?? []) as PortalResource[];
