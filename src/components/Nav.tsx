@@ -9,7 +9,7 @@ import {
 import DarkModeToggle from "@/components/DarkModeToggle";
 
 const LINKS: { href: string; label: string; roles: string[] }[] = [
-  { href: "/dashboard", label: "Dashboard", roles: ["ADMIN", "FINANCE_OFFICER", "FIELD_AGENT", "STUDENT", "EXTERNAL_PARTNER", "DONOR"] },
+  { href: "/dashboard", label: "Dashboard", roles: ["ADMIN", "FIELD_AGENT", "STUDENT", "EXTERNAL_PARTNER", "DONOR"] },
   { href: "/students", label: "Students", roles: ["ADMIN", "FINANCE_OFFICER", "FIELD_AGENT"] },
   { href: "/finance", label: "Finance", roles: ["ADMIN", "FINANCE_OFFICER"] },
   { href: "/academics", label: "M&E", roles: ["ADMIN", "FINANCE_OFFICER", "FIELD_AGENT"] },

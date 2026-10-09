@@ -36,6 +36,7 @@ export default async function DashboardPage() {
     const ownId = await getOwnStudentId(session.user.id);
     if (ownId) redirect(`/students/${ownId}`);
   }
+  if (role === "FINANCE_OFFICER") redirect("/finance");
   if (role === "DONOR") redirect("/donors/impact");
   if (role === "EXTERNAL_PARTNER") redirect("/partners");
 
